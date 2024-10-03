@@ -61,7 +61,26 @@ func (u *User) Offline() {
 	u.server.BroadCast(u, "One of my friends is offline\n")
 }
 
+// 给当前User对应的客户端发消息
+func (u *User) sendMsg(msg string) {
+	u.conn.Write([]byte(msg))
+}
+
 // 用户消息处理业务
 func (u *User) DoMessage(msg string) {
-	u.server.BroadCast(u, msg)
+	// u.server.BroadCast(u, msg)
+	// 在线用户查询功能模拟
+	if msg == "who" {
+		// 遇到who就查询当前在线的用户
+		u.server.mapLock.Lock()
+		for _, user := range u.server.OnlineMap {
+			onlineMsg := " [ " + user.Addr + " ] " + user.Name + " : " + "online...\n"
+			user.sendMsg(onlineMsg)
+
+		}
+		u.server.mapLock.Unlock()
+	} else {
+		// 不是用户查询就作为广播消息
+		u.server.BroadCast(u, msg)
+	}
 }

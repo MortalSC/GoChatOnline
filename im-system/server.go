@@ -74,7 +74,7 @@ func (s *Server) Handler(conn net.Conn) {
 			}
 
 			// 提取用户的消息，去除 '\n'
-			msg := string(buf[:n])
+			msg := string(buf[:n-1])
 
 			// 将得到的消息广播
 			// s.BroadCast(user, msg)
