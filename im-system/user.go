@@ -85,6 +85,22 @@ func (u *User) DoMessage(msg string) {
 
 		}
 		u.server.mapLock.Unlock()
+	} else if len(msg) > 7 && msg[:7] == "rename|" {
+		// 修改用户名的格式：rename|名称
+		newName := msg[7:]
+		// 判断name是否存在，不允许重名
+		_, ok := u.server.OnlineMap[newName]
+		if ok {
+			u.sendMsg("用户名已存在!\n")
+		} else {
+			u.server.mapLock.Lock()
+			delete(u.server.OnlineMap, u.Name)
+			u.server.OnlineMap[newName] = u
+			u.server.mapLock.Unlock()
+
+			u.Name = newName
+			u.sendMsg("您的用户名已更新为：" + u.Name + "\n")
+		}
 	} else {
 		// 不是用户查询就作为广播消息
 		u.server.BroadCast(u, msg)
