@@ -1,6 +1,9 @@
 package main
 
-import "net"
+import (
+	"fmt"
+	"net"
+)
 
 type User struct {
 	Name   string
@@ -47,7 +50,7 @@ func (u *User) Online() {
 	u.server.mapLock.Unlock()
 
 	// 对其他在线用户进行广播：上线通知
-	u.server.BroadCast(u, "One of my friends is online\n")
+	u.server.BroadCast(u, "One of my friends is online")
 }
 
 // 用户下线业务处理
@@ -58,7 +61,7 @@ func (u *User) Offline() {
 	u.server.mapLock.Unlock()
 
 	// 对其他在线用户进行广播：上线通知
-	u.server.BroadCast(u, "One of my friends is offline\n")
+	u.server.BroadCast(u, "One of my friends is offline")
 }
 
 // 给当前User对应的客户端发消息
@@ -71,11 +74,14 @@ func (u *User) DoMessage(msg string) {
 	// u.server.BroadCast(u, msg)
 	// 在线用户查询功能模拟
 	if msg == "who" {
+
+		// 打印当前在线用户数量
+		fmt.Println("当前在线用户数量:", len(u.server.OnlineMap))
 		// 遇到who就查询当前在线的用户
 		u.server.mapLock.Lock()
 		for _, user := range u.server.OnlineMap {
-			onlineMsg := " [ " + user.Addr + " ] " + user.Name + " : " + "online...\n"
-			user.sendMsg(onlineMsg)
+			onlineMsg := "[ " + user.Addr + " ] " + user.Name + " : " + "online...\n"
+			u.sendMsg(onlineMsg)
 
 		}
 		u.server.mapLock.Unlock()
