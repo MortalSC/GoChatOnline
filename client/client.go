@@ -161,7 +161,7 @@ func (client *Client) DealResponse() {
 // 业务处理
 func (client *Client) Run() {
 	for client.flag != 0 {
-		for client.menu() != true {
+		for !client.menu() {
 
 		}
 
@@ -170,15 +170,12 @@ func (client *Client) Run() {
 		case 1: // 群聊
 			//fmt.Println("select : Group chat mode...")
 			client.PublicChat()
-			break
 		case 2: // 私聊
 			//fmt.Println("select : Private chat mode...")
 			client.PrivateChat()
-			break
 		case 3: // 修改用户名
 			//fmt.Println("select : Update user name...")
 			client.UpdateName()
-			break
 		}
 	}
 }
