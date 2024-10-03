@@ -53,14 +53,9 @@ func (s *Server) Handler(conn net.Conn) {
 	// fmt.Println("connect successful")
 
 	// 新建用户
-	user := NewUser(conn)
-	// 用户上线了！把用户加入到OnlineMap中
-	s.mapLock.Lock()
-	s.OnlineMap[user.Name] = user
-	s.mapLock.Unlock()
+	user := NewUser(conn, s)
 
-	// 对其他在线用户进行广播：上线通知
-	s.BroadCast(user, "One of my friends is online\n")
+	user.Online()
 
 	// 接受客户端发送的消息
 	go func() {
@@ -69,7 +64,7 @@ func (s *Server) Handler(conn net.Conn) {
 			n, err := conn.Read(buf)
 			// 如果读取到的消息长度为 0， 表示用户关闭
 			if n == 0 {
-				s.BroadCast(user, "One of my friends is offline")
+				user.Offline()
 				return
 			}
 
@@ -82,7 +77,8 @@ func (s *Server) Handler(conn net.Conn) {
 			msg := string(buf[:n])
 
 			// 将得到的消息广播
-			s.BroadCast(user, msg)
+			// s.BroadCast(user, msg)
+			user.DoMessage(msg)
 		}
 	}()
 

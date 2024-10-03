@@ -3,22 +3,24 @@ package main
 import "net"
 
 type User struct {
-	Name string
-	Addr string
-	C    chan string
-	conn net.Conn
+	Name   string
+	Addr   string
+	C      chan string
+	conn   net.Conn
+	server *Server
 }
 
 // 创建用户的API
-func NewUser(conn net.Conn) *User {
+func NewUser(conn net.Conn, server *Server) *User {
 	// 用户地址
 	userAddr := conn.RemoteAddr().String()
 
 	user := &User{
-		Name: userAddr, // 用户名默认用地址
-		Addr: userAddr,
-		C:    make(chan string),
-		conn: conn,
+		Name:   userAddr, // 用户名默认用地址
+		Addr:   userAddr,
+		C:      make(chan string),
+		conn:   conn,
+		server: server,
 	}
 
 	// 启动监听当前User channel消息的goroutine
@@ -35,4 +37,31 @@ func (u *User) ListenMessage() {
 		// 如果有消息，就发送
 		u.conn.Write([]byte(msg + "\n"))
 	}
+}
+
+// 用户上线业务处理
+func (u *User) Online() {
+	// 用户上线了！把用户加入到OnlineMap中
+	u.server.mapLock.Lock()
+	u.server.OnlineMap[u.Name] = u
+	u.server.mapLock.Unlock()
+
+	// 对其他在线用户进行广播：上线通知
+	u.server.BroadCast(u, "One of my friends is online\n")
+}
+
+// 用户下线业务处理
+func (u *User) Offline() {
+	// 用户下线了！把用户从OnlineMap中删除
+	u.server.mapLock.Lock()
+	delete(u.server.OnlineMap, u.Name)
+	u.server.mapLock.Unlock()
+
+	// 对其他在线用户进行广播：上线通知
+	u.server.BroadCast(u, "One of my friends is offline\n")
+}
+
+// 用户消息处理业务
+func (u *User) DoMessage(msg string) {
+	u.server.BroadCast(u, msg)
 }
