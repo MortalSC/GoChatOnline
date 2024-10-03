@@ -11,6 +11,7 @@ type Client struct {
 	ServerPort int
 	Name       string
 	conn       net.Conn
+	flag       int // 当前客户端选择的模式
 }
 
 // 创建一个客户端
@@ -19,6 +20,7 @@ func NewClient(serverIp string, serverPort int) *Client {
 	clinet := &Client{
 		ServerIp:   serverIp,
 		ServerPort: serverPort,
+		flag:       99,
 	}
 
 	// 连接 Server
@@ -42,6 +44,46 @@ func init() {
 	flag.IntVar(&serverPort, "port", 8888, "set server port (defualt 8888)")
 }
 
+// 展示客户端功能
+func (client *Client) menu() bool {
+	var flag int
+	fmt.Println("1. Group chat mode")
+	fmt.Println("2. Private chat mode")
+	fmt.Println("3. Update user name")
+	fmt.Println("0. Quit")
+
+	fmt.Scanln(&flag)
+	if flag >= 0 && flag <= 3 {
+		client.flag = flag
+		return true
+	} else {
+		fmt.Println(">>>>>> Invalid input <<<<<<")
+		return false
+	}
+}
+
+// 业务处理
+func (client *Client) Run() {
+	for client.flag != 0 {
+		for client.menu() != true {
+
+		}
+
+		// 根据不同的模式，进行不同的业务
+		switch client.flag {
+		case 1: // 群聊
+			fmt.Println("select : Group chat mode...")
+			break
+		case 2: // 私聊
+			fmt.Println("select : Private chat mode...")
+			break
+		case 3: // 修改用户名
+			fmt.Println("select : Update user name...")
+			break
+		}
+	}
+}
+
 func main() {
 	// 命令行解析
 	flag.Parse()
@@ -54,5 +96,5 @@ func main() {
 	fmt.Println(">>>>>>>>>>>>>>> connect Server successful...")
 
 	// 启动客户端业务
-	//select {}
+	client.Run()
 }
