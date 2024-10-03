@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"net"
+	"os"
 )
 
 type Client struct {
@@ -62,6 +64,28 @@ func (client *Client) menu() bool {
 	}
 }
 
+// 更新用户名
+func (client *Client) UpdateName() bool {
+	fmt.Println(">>>>> please input new name :")
+	fmt.Scanln(&client.Name)
+
+	sendMsg := "rename|" + client.Name + "\n"
+	_, err := client.conn.Write([]byte(sendMsg))
+	if err != nil {
+		fmt.Println("conn.Write err : ", err)
+		return false
+	}
+
+	return true
+}
+
+// 处理Server端回应的操作消息
+// 比如修改用户成功后，提示的：修改成功等内容
+func (client *Client) DealResponse() {
+	// 一旦client有数据，就拷贝到标准输出，永久阻塞
+	io.Copy(os.Stdout, client.conn)
+}
+
 // 业务处理
 func (client *Client) Run() {
 	for client.flag != 0 {
@@ -78,7 +102,8 @@ func (client *Client) Run() {
 			fmt.Println("select : Private chat mode...")
 			break
 		case 3: // 修改用户名
-			fmt.Println("select : Update user name...")
+			//fmt.Println("select : Update user name...")
+			client.UpdateName()
 			break
 		}
 	}
@@ -93,6 +118,10 @@ func main() {
 		fmt.Println(">>>>>>>>>>>>>>> connect Server failed...")
 		return
 	}
+
+	// 处理Server回应的操作提示消息
+	go client.DealResponse()
+
 	fmt.Println(">>>>>>>>>>>>>>> connect Server successful...")
 
 	// 启动客户端业务
