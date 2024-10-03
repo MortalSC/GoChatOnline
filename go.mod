@@ -1,0 +1,3 @@
+module GOCHATONLINE
+
+go 1.22.7
