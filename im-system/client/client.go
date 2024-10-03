@@ -64,6 +64,32 @@ func (client *Client) menu() bool {
 	}
 }
 
+// 群聊业务
+func (client *Client) PublicChat() {
+	// 提示用户输入消息
+	var chatMsg string
+
+	fmt.Println(">>>>> please input msg(to public)[exit means overchat] : ")
+	fmt.Scanln(&chatMsg)
+
+	for chatMsg != "exit" {
+		// 发送给服务器
+		// 消息非空就发送
+		if len(chatMsg) != 0 {
+			sendMsg := chatMsg + "\n"
+			_, err := client.conn.Write([]byte(sendMsg))
+			if err != nil {
+				fmt.Println("conn Write err : ", err)
+				break
+			}
+		}
+
+		chatMsg = ""
+		fmt.Println(">>>>> please input msg(to public)[exit means overchat] : ")
+		fmt.Scanln(&chatMsg)
+	}
+}
+
 // 更新用户名
 func (client *Client) UpdateName() bool {
 	fmt.Println(">>>>> please input new name :")
@@ -96,7 +122,8 @@ func (client *Client) Run() {
 		// 根据不同的模式，进行不同的业务
 		switch client.flag {
 		case 1: // 群聊
-			fmt.Println("select : Group chat mode...")
+			//fmt.Println("select : Group chat mode...")
+			client.PublicChat()
 			break
 		case 2: // 私聊
 			fmt.Println("select : Private chat mode...")
