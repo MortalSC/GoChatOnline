@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"net"
+	"strings"
 )
 
 type User struct {
@@ -76,7 +76,7 @@ func (u *User) DoMessage(msg string) {
 	if msg == "who" {
 
 		// 打印当前在线用户数量
-		fmt.Println("当前在线用户数量:", len(u.server.OnlineMap))
+		// fmt.Println("当前在线用户数量:", len(u.server.OnlineMap))
 		// 遇到who就查询当前在线的用户
 		u.server.mapLock.Lock()
 		for _, user := range u.server.OnlineMap {
@@ -91,7 +91,7 @@ func (u *User) DoMessage(msg string) {
 		// 判断name是否存在，不允许重名
 		_, ok := u.server.OnlineMap[newName]
 		if ok {
-			u.sendMsg("用户名已存在!\n")
+			u.sendMsg("The user name already exists!\n")
 		} else {
 			u.server.mapLock.Lock()
 			delete(u.server.OnlineMap, u.Name)
@@ -99,8 +99,35 @@ func (u *User) DoMessage(msg string) {
 			u.server.mapLock.Unlock()
 
 			u.Name = newName
-			u.sendMsg("您的用户名已更新为：" + u.Name + "\n")
+			u.sendMsg("Your username has been updated to: " + u.Name + "\n")
 		}
+	} else if len(msg) > 4 && msg[:3] == "to|" {
+		// 私聊消息格式：to|username|msg
+
+		// 1. 获取用户名
+		remoteName := strings.Split(msg, "|")[1]
+		if remoteName == "" {
+			// 用户名为空
+			u.sendMsg("The message format is incorrect, please input like : [to|uesrname|msg]\n")
+			return
+		}
+
+		// 2. 根据用户名得到对方的user对象
+		remoteUser, ok := u.server.OnlineMap[remoteName]
+		if !ok {
+			// 用户不存在
+			u.sendMsg("The user is nil\n")
+			return
+		}
+
+		// 3. 获取消息内容，并发送
+		content := strings.Split(msg, "|")[2]
+		if content == "" {
+			u.sendMsg("The content you sent is empty\n")
+			return
+		}
+		remoteUser.sendMsg("[" + u.Name + "] send the msg to you: [ " + content + " ]\n")
+
 	} else {
 		// 不是用户查询就作为广播消息
 		u.server.BroadCast(u, msg)

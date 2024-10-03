@@ -94,7 +94,7 @@ func (s *Server) Handler(conn net.Conn) {
 		select {
 		case <-isLive:
 			// 当前用户是活跃的，重置计时器
-		case <-time.After(time.Second * 10): // 10秒
+		case <-time.After(time.Second * 300): // 5分钟
 			// 超时
 			// 将当前的User强制关闭
 			user.sendMsg("You are offline\n")
