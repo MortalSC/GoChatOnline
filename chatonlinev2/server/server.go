@@ -4,16 +4,17 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
 )
 
 type Server struct {
-	Ip        string           // ip
-	Port      int              // 端口
-	OnlineMap map[string]*User // 在线用户表
-	mapLock   sync.RWMutex     // OnlineMap 是全局的，需要加锁
-	Message   chan string      // 消息广播通道
+	Ip        string            // ip
+	Port      int               // 端口
+	OnlineMap map[string]Client // 在线用户列表，使用Client接口，支持多种类型的客户端
+	mapLock   sync.RWMutex      // OnlineMap 是全局的，使用读写锁，保证并发安全
+	Message   chan Message      // 消息广播通道
 }
 
 // 创建一个server接口
@@ -21,8 +22,8 @@ func NewServer(ip string, port int) *Server {
 	server := &Server{
 		Ip:        ip,
 		Port:      port,
-		OnlineMap: make(map[string]*User),
-		Message:   make(chan string),
+		OnlineMap: make(map[string]Client),
+		Message:   make(chan Message),
 	}
 	return server
 }
@@ -35,18 +36,22 @@ func (s *Server) ListenMessager() {
 		// 将msg发送给全部的在线User
 		s.mapLock.Lock()
 		for _, client := range s.OnlineMap {
-			client.C <- msg
+			// client.C <- msg
+			client.SendMessage(msg) // 调用客户端接口的SendMessage方法发送消息
 		}
 		s.mapLock.Unlock()
 	}
 }
 
 // 广播消息API
-func (s *Server) BroadCast(user *User, msg string) {
-	sendMsg := "[ " + user.Addr + " ] " + user.Name + " : " + msg
+func (s *Server) BroadCast(user Client, content string) {
+	msg := Message{
+		Sender:  user.GetName(), // 消息发送者
+		Content: content,        // 消息内容
+		Type:    "broadcast",    // 消息类型为：群聊
+	}
 
-	// 消息放入通道中
-	s.Message <- sendMsg
+	s.Message <- msg // 将消息发送到Message通道中，等待ListenMessager广播
 }
 
 // 业务处理
@@ -78,7 +83,8 @@ func (s *Server) Handler(conn net.Conn) {
 			}
 
 			// 提取用户的消息，去除 '\n'
-			msg := string(buf[:n-1])
+			// msg := string(buf[:n])
+			msg := strings.TrimSpace(string(buf[:n]))
 
 			// 将得到的消息广播
 			// s.BroadCast(user, msg)
@@ -95,15 +101,15 @@ func (s *Server) Handler(conn net.Conn) {
 		case <-isLive:
 			// 当前用户是活跃的，重置计时器
 		case <-time.After(time.Second * 300): // 5分钟
-			// 超时
-			// 将当前的User强制关闭
-			user.sendMsg("You are offline\n")
+			user.SendMessage(Message{Content: "You are timeout, disconnected."}) // 发送超时消息
+			user.Offline()                                                       // 用户下线
 
-			// 销毁占用的资源
-			close(user.C)
-
-			// 关闭连接
+			// 关闭网络连接
 			conn.Close()
+
+			// 关闭通道，释放资源
+			close(isLive)
+			close(user.C)
 
 			// 退出当前的handler
 			return
