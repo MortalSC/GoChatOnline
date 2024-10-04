@@ -2,7 +2,7 @@
 
 echo "Building client executable..."
 cd client
-GOOS=windows go build -o client client.go
+GOOS=windows go build -o client client.go message.go
 if [ $? -ne 0 ]; then
     echo "Failed to build client."
     exit $?
@@ -12,7 +12,7 @@ cd ..
 
 echo "Building server executable..."
 cd server
-GOOS=windows go build -o server main.go server.go user.go
+GOOS=windows go build -o server main.go server.go user.go message.go
 if [ $? -ne 0 ]; then
     echo "Failed to build server."
     exit $?
