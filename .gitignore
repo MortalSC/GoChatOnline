@@ -1,0 +1,7 @@
+# 忽略 Windows 可执行文件
+server.exe
+client.exe
+
+# 忽略 Linux 可执行文件
+server
+client
