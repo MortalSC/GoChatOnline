@@ -1,16 +1,26 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"net"
-	"strings"
 )
 
+// 定义Client接口，用于不同类型的客户端
+type Client interface {
+	SendMessage(msg Message) // 发送消息的接口
+	GetName() string         // 获取客户端名称的接口
+	Online()                 // 用户上线的接口
+	Offline()                // 用户下线的接口
+}
+
+// User结构体实现了Client接口，代表一个用户
 type User struct {
-	Name   string
-	Addr   string
-	C      chan string
-	conn   net.Conn
-	server *Server
+	Name   string       // 用户名
+	Addr   string       // 用户地址
+	C      chan Message // 用户的消息通道
+	conn   net.Conn     // 用户的网络连接
+	server *Server      // 用户所属的服务器
 }
 
 // 创建用户的API
@@ -21,25 +31,15 @@ func NewUser(conn net.Conn, server *Server) *User {
 	user := &User{
 		Name:   userAddr, // 用户名默认用地址
 		Addr:   userAddr,
-		C:      make(chan string),
+		C:      make(chan Message),
 		conn:   conn,
 		server: server,
 	}
 
-	// 启动监听当前User channel消息的goroutine
+	// 启动监听当前用户消息通道的goroutine
 	go user.ListenMessage()
 
 	return user
-}
-
-// 监听当前User channel的方法，一旦有消息，就直接发送给对端客户端
-func (u *User) ListenMessage() {
-	// 不断监听
-	for {
-		msg := <-u.C
-		// 如果有消息，就发送
-		u.conn.Write([]byte(msg + "\n"))
-	}
 }
 
 // 用户上线业务处理
@@ -50,7 +50,7 @@ func (u *User) Online() {
 	u.server.mapLock.Unlock()
 
 	// 对其他在线用户进行广播：上线通知
-	u.server.BroadCast(u, "One of my friends is online")
+	u.server.BroadCast(u, "has joined")
 }
 
 // 用户下线业务处理
@@ -61,75 +61,97 @@ func (u *User) Offline() {
 	u.server.mapLock.Unlock()
 
 	// 对其他在线用户进行广播：上线通知
-	u.server.BroadCast(u, "One of my friends is offline")
+	u.server.BroadCast(u, "has left")
 }
 
-// 给当前User对应的客户端发消息
-func (u *User) sendMsg(msg string) {
-	u.conn.Write([]byte(msg))
-}
-
-// 用户消息处理业务
-func (u *User) DoMessage(msg string) {
-	// u.server.BroadCast(u, msg)
-	// 在线用户查询功能模拟
-	if msg == "who" {
-
-		// 打印当前在线用户数量
-		// fmt.Println("当前在线用户数量:", len(u.server.OnlineMap))
-		// 遇到who就查询当前在线的用户
-		u.server.mapLock.Lock()
-		for _, user := range u.server.OnlineMap {
-			onlineMsg := "[ " + user.Addr + " ] " + user.Name + " : " + "online...\n"
-			u.sendMsg(onlineMsg)
-
-		}
-		u.server.mapLock.Unlock()
-	} else if len(msg) > 7 && msg[:7] == "rename|" {
-		// 修改用户名的格式：rename|名称
-		newName := msg[7:]
-		// 判断name是否存在，不允许重名
-		_, ok := u.server.OnlineMap[newName]
-		if ok {
-			u.sendMsg("The user name already exists!\n")
-		} else {
-			u.server.mapLock.Lock()
-			delete(u.server.OnlineMap, u.Name)
-			u.server.OnlineMap[newName] = u
-			u.server.mapLock.Unlock()
-
-			u.Name = newName
-			u.sendMsg("Your username has been updated to: " + u.Name + "\n")
-		}
-	} else if len(msg) > 4 && msg[:3] == "to|" {
-		// 私聊消息格式：to|username|msg
-
-		// 1. 获取用户名
-		remoteName := strings.Split(msg, "|")[1]
-		if remoteName == "" {
-			// 用户名为空
-			u.sendMsg("The message format is incorrect, please input like : [to|uesrname|msg]\n")
-			return
-		}
-
-		// 2. 根据用户名得到对方的user对象
-		remoteUser, ok := u.server.OnlineMap[remoteName]
-		if !ok {
-			// 用户不存在
-			u.sendMsg("The user is nil\n")
-			return
-		}
-
-		// 3. 获取消息内容，并发送
-		content := strings.Split(msg, "|")[2]
-		if content == "" {
-			u.sendMsg("The content you sent is empty\n")
-			return
-		}
-		remoteUser.sendMsg("[" + u.Name + "] send the msg to you: [ " + content + " ]\n")
-
-	} else {
-		// 不是用户查询就作为广播消息
-		u.server.BroadCast(u, msg)
+// 发消息给当前用户
+func (u *User) SendMessage(msg Message) {
+	// 将Message结构体转换成json格式
+	data, err := json.Marshal(msg)
+	if err != nil {
+		fmt.Println("json.Marshal error : ", err)
+		return
 	}
+	// 将json数据写入到用户连接中，发送给客户端
+	//u.conn.Write(data)
+	u.conn.Write(append(data, '\n'))
+}
+
+// 用户消息处理，根据消息类型进行处理
+func (u *User) DoMessage(content string) {
+	// 定义一个Message结构体
+	var msg Message
+	// json -> Message
+	if err := json.Unmarshal([]byte(content), &msg); err != nil {
+		fmt.Println("Message formamt error : ", err)
+		//fmt.Println("Received content:", content) // 打印接收到的内容
+		return
+	}
+
+	// 根据消息的Type执行不同的操作
+	switch msg.Type {
+	case "private": // 私聊消息
+		// 查找用户
+		u.server.mapLock.Lock()
+		remoteUser, ok := u.server.OnlineMap[msg.Target]
+		u.server.mapLock.Unlock()
+
+		if !ok {
+			// 如果目标用户不存在，发送错误消息
+			u.SendMessage(
+				Message{
+					Sender:  "System",
+					Content: fmt.Sprintf("User %s not found.\n", msg.Target),
+					Type:    "error",
+				})
+			return
+		}
+
+		// 构建私聊消息
+		privateMsg := Message{
+			Sender:  u.Name,
+			Content: msg.Content,
+			Type:    "private",
+		}
+
+		// 消息发送给目标用户给
+		remoteUser.SendMessage(privateMsg)
+
+	case "rename": // 修改用户名
+		u.server.mapLock.Lock()
+		delete(u.server.OnlineMap, u.Name)
+		u.Name = msg.Content
+		u.server.OnlineMap[u.Name] = u
+		u.server.mapLock.Unlock()
+
+		u.SendMessage(
+			Message{
+				Sender:  "System",
+				Content: "Username updated successfully.\n",
+				Type:    "info",
+			})
+
+	default: // 默认群聊
+		u.server.BroadCast(u, msg.Content)
+	}
+}
+
+// 监听当前User消息管道的方法，一旦有消息，就发送给客户端
+func (u *User) ListenMessage() {
+	for {
+		msg := <-u.C // 从消息管道中读取消息
+		// Message -> json
+		data, err := json.Marshal(msg)
+		if err != nil {
+			fmt.Println("json.Marshal error : ", err)
+			return
+		}
+		// 将json数据写入到用户连接中，发送给客户端
+		u.conn.Write(data)
+	}
+}
+
+// 获取用户名称
+func (u *User) GetName() string {
+	return u.Name
 }
